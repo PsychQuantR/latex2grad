@@ -1,0 +1,9 @@
+.DS_Store
+.Rhistory
+.RData
+.Rproj.user/
+references/
+*.srt
+*.mp3
+*.m4a
+*.wav
