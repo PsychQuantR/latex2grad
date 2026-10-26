@@ -138,8 +138,9 @@ independent implementation of the density.
 
 ## Development
 
-Specs and change proposals are managed with Spectra (`openspec/`); the first
-change is `openspec/changes/add-latex2grad-pipeline/`.
+Specs and change proposals are managed with Spectra: the current specs are in
+`openspec/specs/` (six capabilities), and the first change is archived at
+`openspec/changes/archive/2026-10-26-add-latex2grad-pipeline/`.
 
 ## Status
 
