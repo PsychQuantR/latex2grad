@@ -1,0 +1,6 @@
+^LICENSE\.md$
+^openspec$
+^CLAUDE\.md$
+^\.claude$
+^.*\.Rproj$
+^\.Rproj\.user$

@@ -7,3 +7,7 @@ references/
 *.mp3
 *.m4a
 *.wav
+*.Rcheck/
+latex2grad_*.tar.gz
+*.aux
+*.log
