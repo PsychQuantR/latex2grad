@@ -70,9 +70,10 @@
 }
 
 # DefDiff::grad on the lifted formula. Maximal sub-trees free of `v` are
-# frozen to constant symbols .c<k> first: DefDiff 0.2.0's walker fails on a
-# symbolic power it does not need to differentiate ("walker returned a shim
-# with no pullback"), and a constant sub-tree is a constant either way.
+# frozen to constant symbols .c<k> first: DefDiff 0.2.0's walker builds no
+# pullback for a power with a symbolic exponent, so e.g. sum(a / q^m) fails
+# w.r.t. a ("walker returned a shim with no pullback"), and a constant
+# sub-tree is a constant either way.
 .defdiff_grad <- function(f, v) {
   fr <- .freeze_constants(f, v)
   d <- normalize_tree(DefDiff::grad(call("sum", fr$expr), v))

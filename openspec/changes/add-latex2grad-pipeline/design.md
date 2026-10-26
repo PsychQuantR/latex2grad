@@ -21,7 +21,7 @@ Facts established by probing DefDiff 0.2.0 on this branch (Linux, Accelerate/Met
 | `extend_language("L_3", "erf", …)` then `grad(quote(sum(erf(v))), "v")` | rule ignored: `.grad_inner` has a hard-coded L_3 switch |
 | `grad(quote(sum(cos(x) * sin(x))), "x")` | returns `fast_vec_*` kernel calls even through `grad.call` |
 | `grad(quote(sum(x^y)), "x")` | `simpleError`: non-numeric argument to binary operator (found during apply) |
-| `grad(quote(sum(a * (1 + b)^-((n + 1)/2))), "a")` | `DefDiff_not_definable`: walker returned a shim with no pullback (found during apply) |
+| `grad(quote(sum(a / q^m)), "a")` | `DefDiff_not_definable`: walker returned a shim with no pullback; `sum(a / q^2)` and `sum(a * (1 / q^m))` work (found during apply) |
 
 ## Goals / Non-Goals
 
@@ -138,13 +138,17 @@ without adding derivative rules to latex2grad:
 - **Constant freezing**: before every DefDiff call, maximal sub-trees free of the
   differentiation variable become constant symbols `.c<k>` and are substituted back
   afterwards. A constant is a constant, so this is exact, and DefDiff's walker never
-  visits a symbolic power it does not need.
+  meets a variable-free power with a symbolic exponent (it builds no pullback for
+  one, which breaks the enclosing division).
 - **exp-log retry**: if DefDiff still fails and the formula has a power `a^b` with the
   variable in `a` and a symbolic `b` free of it, that power is retried as
   `exp(b * log(a))` (valid for `a > 0`); the result is turned back into `a^b` and a
   note is recorded in the result and the report.
 
-Both behaviours are reported upstream (DefDiff issues drafted in-session).
+Both behaviours are reported upstream: PsychQuantR/DefDiff#2 (power rule) and
+PsychQuantR/DefDiff#3 (division by a symbolic power). The `hessian()` identity-block bug
+is PsychQuantR/DefDiff#4, `extend_language()` inside `sum()` is PsychQuantR/DefDiff#5,
+and the Linux build is PsychQuantR/DefDiff#6.
 
 ### D7b: An entirely numeric entry is never certified
 
@@ -187,7 +191,8 @@ integer bounds are expanded; plain-letter `sin`/`cos`/`exp`/`log`/`ln` runs → 
 - **Long derivatives are unreadable** → the report folds `where` definitions back into
   their symbols and names repeated large sub-trees `A_1, A_2, …` (display only; the
   certified trees stay fully expanded).
-- **DefDiff builds only on macOS** → Linux CI needs an upstream portability fix (filed).
+- **DefDiff builds only on macOS** → Linux CI needs an upstream portability fix
+  (PsychQuantR/DefDiff#6).
 
 ## Migration Plan
 

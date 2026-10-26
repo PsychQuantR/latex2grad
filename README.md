@@ -126,13 +126,15 @@ independent implementation of the density.
 
 - `grad(sum(a^b), v)` with `v` only in the base and a symbolic exponent fails
   ("non-numeric argument to binary operator"); latex2grad retries such powers as
-  `exp(b log a)` and records a note.
-- A symbolic power that does not contain the variable makes the walker fail
-  ("shim with no pullback"); latex2grad freezes variable-free sub-trees into
-  constant symbols before calling DefDiff.
+  `exp(b log a)` and records a note. (PsychQuantR/DefDiff#2)
+- Dividing by a power with a symbolic exponent fails inside `sum()`, e.g.
+  `grad(quote(sum(a / q^m)), "a")` ("walker returned a shim with no pullback");
+  latex2grad freezes variable-free sub-trees into constant symbols before
+  calling DefDiff. (PsychQuantR/DefDiff#3)
 - `hessian()` builds `diag(<scalar>)` blocks, which is an n×n identity for
-  length-1 variables; latex2grad does not use it.
-- `extend_language()` L_3 rules are not consulted inside `sum()`.
+  length-1 variables; latex2grad does not use it. (PsychQuantR/DefDiff#4)
+- `extend_language()` L_3 rules are not consulted inside `sum()`. (PsychQuantR/DefDiff#5)
+- DefDiff does not build on Linux. (PsychQuantR/DefDiff#6)
 
 ## Development
 
