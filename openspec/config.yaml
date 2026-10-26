@@ -1,0 +1,20 @@
+schema: spec-driven
+
+context: |
+  latex2grad is an R package (product layer of the Definable Algebra Theory stack).
+  Pipeline: image --OCR--> LaTeX --parse--> R expression tree --DefDiff--> derivative tree
+  --> numeric verification --> LaTeX report. An LLM is allowed ONLY at the entry
+  (disambiguation, optional OCR) and every LLM decision is written into the report's
+  assumptions. Everything after the entry is deterministic.
+  Upstream dependency: DefDiff (PsychQuantR/DefDiff, Imports) does all symbolic
+  differentiation; latex2grad never re-implements derivative rules. DefTeX (LaTeX <->
+  tree parser/printer) has no public mirror yet, so its functionality lives in
+  latex2grad's internal tex_* layer until the mirror ships.
+  Conventions: base R + testthat 3e, roxygen2 docs, conventional commits with
+  issue refs as (#N) / Refs #N (never close keywords).
+
+rules:
+  specs:
+    - Spec files are written in English with SHALL/MUST normative language
+  tasks:
+    - Every task names the files it touches
