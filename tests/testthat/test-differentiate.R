@@ -56,12 +56,34 @@ test_that("other definitional lowerings are exact", {
   expect_equal(unname(as_function(r)(x = 0.7)), -0.7 * dnorm(0.7), tolerance = 1e-12)
 })
 
-test_that("symbolic exponents in the base variable use the exp-log workaround", {
+test_that("symbolic exponents in the base variable are differentiated", {
   r <- latex2grad("x^{y}", wrt = c("x", "y"))
   expect_equal(nrow(r$out_of_scope), 0L)
-  expect_true(length(r$notes) == 1L)
+  # the exp-log note appears only while DefDiff fails on x^y (0.2.0, PsychQuantR/DefDiff#2)
+  expect_lte(length(r$notes), 1L)
   expect_equal(unname(as_function(r)(x = 1.3, y = 0.4)), c(0.4 * 1.3^-0.6, 1.3^0.4 * log(1.3)),
                tolerance = 1e-12)
+  expect_true(r$certificate$pass)
+})
+
+test_that("the exp-log retry recovers when DefDiff fails on a symbolic power (#3)", {
+  real <- latex2grad:::.defdiff_grad
+  has_symbolic_power <- function(e) {
+    if (!is.call(e)) return(FALSE)
+    if (identical(e[[1L]], as.name("^")) && is.null(latex2grad:::.num_value(e[[3L]]))) return(TRUE)
+    any(vapply(as.list(e)[-1L], has_symbolic_power, TRUE))
+  }
+  # Fail the way DefDiff 0.2.0 does, whatever DefDiff version is installed.
+  local_mocked_bindings(.defdiff_grad = function(f, v) {
+    if (has_symbolic_power(f)) stop("non-numeric argument to binary operator")
+    real(f, v)
+  })
+  r <- latex2grad("x^{y}", wrt = "x")
+  expect_equal(nrow(r$out_of_scope), 0L)
+  expect_length(r$notes, 1L)
+  expect_match(r$notes, "exp(b log a)", fixed = TRUE)
+  expect_false(latex2grad:::.has_numeric_partial(r$derivative$entries$x))
+  expect_equal(unname(as_function(r)(x = 1.3, y = 0.4)), 0.4 * 1.3^-0.6, tolerance = 1e-12)
   expect_true(r$certificate$pass)
 })
 
