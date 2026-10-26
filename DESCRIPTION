@@ -1,0 +1,38 @@
+Package: latex2grad
+Type: Package
+Title: Verifiable Differentiation of Formulas Written in LaTeX
+Version: 0.1.0
+Authors@R: person("Che", "Cheng", email = "lufee2005@gmail.com",
+                  role = c("aut", "cre"))
+Description: End-to-end, verifiable differentiation of formulas written in
+    LaTeX (or captured as images). A deterministic grammar parses LaTeX into
+    an R expression tree and records every reading it had to choose; the
+    tree is normalized to a canonical form and differentiated symbolically
+    through 'DefDiff' (gradient, Hessian, Jacobian). Terms outside DefDiff's
+    language are named in the report and handled by closed-form rules or
+    numerically. Every result carries a certificate: a parse/print round
+    trip and a comparison with Richardson-extrapolated central differences
+    at random points. Reports are written as LaTeX, Markdown, or text. An
+    optional language model may be used at the entry only, to transcribe an
+    image or to resolve ambiguous notation, and each of its decisions is
+    written into the report.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends:
+    R (>= 4.0.0)
+Imports:
+    DefDiff (>= 0.2.0),
+    stats,
+    tools,
+    utils
+Suggests:
+    testthat (>= 3.0.0),
+    httr2,
+    jsonlite
+Remotes:
+    PsychQuantR/DefDiff
+Config/testthat/edition: 3
+URL: https://github.com/PsychQuantR/latex2grad
+BugReports: https://github.com/PsychQuantR/latex2grad/issues
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1

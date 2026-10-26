@@ -7,3 +7,8 @@ references/
 *.mp3
 *.m4a
 *.wav
+*.Rcheck/
+*.tar.gz
+*.aux
+*.log
+*.pdf
