@@ -34,10 +34,11 @@ against central differences of the symbolic gradient.
 
 #### Scenario: an entirely numeric entry is never certified
 
-- **WHEN** DefDiff refused the formula for an entry, so the entry is a single
-  numeric-partial node of the whole formula
+- **WHEN** an entry's dependence on the differentiation variables lies entirely inside
+  numeric-partial nodes (DefDiff refused the formula, or the formula such as `\Gamma(x)`
+  or `c \Gamma(x)` is out of scope as a whole)
 - **THEN** the certificate SHALL fail and name that entry, because comparing it with
-  central differences of the same formula is circular
+  central differences of the same function is circular
 
 #### Scenario: points outside the formula's domain are rejected
 
@@ -48,8 +49,9 @@ against central differences of the symbolic gradient.
 
 ### Requirement: Closure level is reported
 
-The system SHALL report `DefDiff::level()` of the lowered source and of each derivative
-entry, and the number of entries that contain numeric-partial nodes.
+The system SHALL report `DefDiff::level()` of the lowered source (the highest level among
+its components for a vector formula) and of each derivative entry, and the number of
+entries that contain numeric-partial nodes.
 
 #### Scenario: closure preserved for an in-language formula
 

@@ -65,7 +65,24 @@ test_that("symbolic exponents in the base variable use the exp-log workaround", 
   expect_true(r$certificate$pass)
 })
 
-test_that("constant formulas and missing variables give zero", {
-  r <- latex2grad("5 + a", wrt = "x")
+test_that("constant formulas and missing variables give zero, with a warning", {
+  expect_warning(r <- latex2grad("5 + a", wrt = "x"), "does not occur")
   expect_identical(r$derivative$entries$x, 0)
+  expect_true(any(grepl("does not occur", r$notes)))
+})
+
+test_that("wrt is checked against the formula (review of #2)", {
+  r <- latex2grad("\\nu^2", wrt = "\\nu")
+  expect_identical(r$wrt, "nu")
+  expect_identical(r$derivative$entries$nu, quote(2 * nu))
+  expect_true(any(grepl("read as the symbol", r$notes)))
+  expect_warning(latex2grad("x_1^2 + y", wrt = "x_1", where = c(x_1 = "\\sin(z)")), "where")
+})
+
+test_that("as_function requires a value for every symbol", {
+  f <- as_function(latex2grad("u x^2", wrt = "x"))
+  u <- 100
+  expect_error(f(x = 2), "no value given for: u")
+  expect_equal(unname(f(x = 2, u = 3)), 12)
+  expect_error(as_function(latex2grad("T x^2", wrt = "x"))(x = 2), "T")
 })

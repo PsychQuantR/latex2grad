@@ -101,3 +101,37 @@ test_that("numeric-partial notation parses", {
   e <- tree("\\left.\\frac{\\partial^{2}}{\\partial \\nu \\, \\partial x}\\left[\\Gamma\\left(\\nu x\\right)\\right]\\right|_{\\mathrm{num}}")
   expect_identical(e, quote(numeric_partial(gamma(nu * x), "nu", "x")))
 })
+
+test_that("superscripted \\Phi and \\Gamma are still functions (review of #2)", {
+  p <- parse_latex("\\Phi^{-1}(u)")
+  expect_identical(p$expr, quote(qnorm(u)))
+  expect_true("inverse_fn" %in% p$assumptions$kind)
+  expect_error(parse_latex("\\Phi^{-1}(u)", strict = TRUE), class = "latex2grad_ambiguity")
+  expect_identical(tree("\\Gamma^2(x)"), quote(gamma(x)^2))
+  expect_identical(tree("\\Phi^{-1}\\left(u\\right)"), quote(qnorm(u)))
+})
+
+test_that("an unbraced script e is Euler's number, as in the braced form", {
+  p <- parse_latex("x^e")
+  expect_identical(p$expr, quote(x^exp(1)))
+  expect_true("euler" %in% p$assumptions$kind)
+  expect_identical(tree("x^e", vars = "e"), quote(x^e))
+  expect_identical(tree("\\log_e x"), tree("\\log_{e} x"))
+})
+
+test_that("Leibniz notation with d or \\mathrm{d} is rejected", {
+  expect_error(parse_latex("\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(x^2\\right)"), "Leibniz")
+  expect_error(parse_latex("\\frac{d}{dx} x^2"), "Leibniz")
+  expect_error(parse_latex("\\frac{d^2}{dx^2} x^3"), "Leibniz")
+  expect_identical(tree("\\frac{d}{2}"), quote(d / 2))
+})
+
+test_that("\\left\\{ and \\left| delimit function arguments", {
+  expect_identical(tree("\\exp\\left\\{-x^2\\right\\}"), call("exp", call("-", quote(x^2))))
+  expect_identical(tree("\\log\\left|x\\right|"), quote(log(abs(x))))
+})
+
+test_that("t_i^{-1} without an argument is a reciprocal", {
+  expect_identical(tree("t_1^{-1}"), call("^", quote(t_1), call("-", 1)))
+  expect_identical(tree("\\frac{1}{2} t_0^{-1}"), call("*", 0.5, call("^", quote(t_0), call("-", 1))))
+})

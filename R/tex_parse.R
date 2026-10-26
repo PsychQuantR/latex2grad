@@ -19,7 +19,7 @@
   sinh = "sinh", cosh = "cosh", tanh = "tanh", arcsin = "asin", arccos = "acos",
   arctan = "atan", exp = "exp", log = "log", ln = "log"
 )
-.inverse_fun <- c(sin = "asin", cos = "acos", tan = "atan")
+.inverse_fun <- c(sin = "asin", cos = "acos", tan = "atan", Phi = "qnorm")
 
 # Function names accepted through \operatorname{} / \mathrm{} (allowlist: the
 # parser never builds a call to anything else), with their arity.
@@ -295,11 +295,19 @@ print.latex2grad_parsed <- function(x, ...) {
   if (.is(tok, "num")) return(.single_digit(p))
   if (.is(tok, "letter")) {
     .advance(p)
+    if (tok$value == "e" && !("e" %in% p$vars)) {
+      .assume(p, "euler", "`e` is Euler's number (declare `vars = \"e\"` to make it a variable)")
+      return(quote(exp(1)))
+    }
     return(as.name(tok$value))
   }
   if (.is(tok, "cmd", .greek)) {
     .advance(p)
     return(as.name(tok$value))
+  }
+  if (.is(tok, "name") && tok$kind == "mathrm" && tok$value == "e") {
+    .advance(p)
+    return(quote(exp(1)))
   }
   if (.is(tok, "cmd", c("frac", "dfrac", "tfrac", "sqrt"))) return(.p_primary(p))
   .parse_error("unsupported superscript/subscript argument", if (!is.null(tok)) tok$start)
@@ -371,7 +379,7 @@ print.latex2grad_parsed <- function(x, ...) {
   if (v %in% names(.fun_cmds)) return(.p_fun_app(p, .fun_cmds[[v]], v))
   switch(v,
     frac = , dfrac = , tfrac = {
-      if (.is(.peek(p), "lbrace") && .is(.peek(p, 1L), "cmd", "partial")) {
+      if (.is(.peek(p), "lbrace") && .is(.peek(p, 1L), "cmd", "partial") || .is_leibniz_d(p)) {
         .parse_error("Leibniz derivative notation is not supported in the input", tok$start)
       }
       a <- .p_frac_arg(p)
@@ -411,6 +419,17 @@ print.latex2grad_parsed <- function(x, ...) {
     .parse_error(paste0("unsupported command \\", v), tok$start))
 }
 
+# \frac{d}{dx} / \frac{\mathrm{d}}{\mathrm{d}x} / \frac{d^2}{dx^2}: a numerator that is
+# just a differential d, over a denominator that starts with one.
+.is_leibniz_d <- function(p) {
+  is_d <- function(t) .is(t, "letter", "d") || (.is(t, "name", "d") && identical(t$kind, "mathrm"))
+  if (!.is(.peek(p), "lbrace") || !is_d(.peek(p, 1L))) return(FALSE)
+  k <- 2L
+  if (.is(.peek(p, k), "op", "^")) k <- k + 2L
+  if (.is(.peek(p, k - 1L), "lbrace")) return(FALSE)
+  .is(.peek(p, k), "rbrace") && .is(.peek(p, k + 1L), "lbrace") && is_d(.peek(p, k + 2L))
+}
+
 # \left<delim> ... \right<delim>
 .p_left <- function(p, tok) {
   d <- .advance(p)
@@ -444,12 +463,30 @@ print.latex2grad_parsed <- function(x, ...) {
 .p_call_args <- function(p) {
   tok <- .advance(p)
   if (.is(tok, "cmd", "left")) {
-    d <- .expect(p, "op", c("(", "["), "'(' after \\left")
-    close <- if (d$value == "(") ")" else "]"
-    args <- .p_arg_list(p)
-    .expect(p, "cmd", "right", "\\right")
-    .expect(p, "op", close)
-    return(args)
+    d <- .advance(p)
+    if (.is(d, "op", c("(", "["))) {
+      close <- if (d$value == "(") ")" else "]"
+      args <- .p_arg_list(p)
+      .expect(p, "cmd", "right", "\\right")
+      .expect(p, "op", close)
+      return(args)
+    }
+    if (.is(d, "cmd", "{")) {
+      args <- .p_arg_list(p)
+      .expect(p, "cmd", "right", "\\right")
+      .expect(p, "cmd", "}", "\\}")
+      return(args)
+    }
+    if (.is(d, "op", "|") || .is(d, "cmd", "lvert")) {
+      saved <- p$abs_depth
+      p$abs_depth <- 0L
+      e <- .p_expr(p)
+      p$abs_depth <- saved
+      .expect(p, "cmd", "right", "\\right")
+      if (.is(d, "op", "|")) .expect(p, "op", "|") else .expect(p, "cmd", "rvert", "\\rvert")
+      return(list(call("abs", e)))
+    }
+    .parse_error(paste0("unsupported \\left delimiter '", d$value, "' for a function argument"), d$start)
   }
   close <- if (tok$value == "(") ")" else "]"
   args <- .p_arg_list(p)
@@ -604,6 +641,26 @@ print.latex2grad_parsed <- function(x, ...) {
   as.name(name)
 }
 
+# Number of tokens taken by a superscript at the current position (0 when
+# there is none): '^' plus a braced group or a single (optionally negated) token.
+.script_width <- function(p) {
+  if (!.is(.peek(p), "op", "^")) return(0L)
+  k <- 1L
+  if (.is(.peek(p, k), "op", "-")) k <- k + 1L
+  if (.is(.peek(p, k), "lbrace")) {
+    depth <- 0L
+    repeat {
+      t <- .peek(p, k)
+      if (is.null(t)) return(k)
+      if (.is(t, "lbrace")) depth <- depth + 1L
+      if (.is(t, "rbrace")) depth <- depth - 1L
+      k <- k + 1L
+      if (depth == 0L) return(k)
+    }
+  }
+  k + 1L
+}
+
 .is_minus_one_script <- function(p) {
   # ^{-1} or ^-1 at the current position (after '^' has NOT been consumed)
   .is(.peek(p), "op", "^") &&
@@ -623,14 +680,14 @@ print.latex2grad_parsed <- function(x, ...) {
   ch <- tok$value
   sub <- if (.is(.peek(p), "op", "_")) .p_subscript(p) else NULL
   # Student-t quantile t_{df}^{-1}(u)
-  if (ch == "t" && !is.null(sub) && .is_minus_one_script(p)) {
+  if (ch == "t" && !is.null(sub) && .is_minus_one_script(p) &&
+      .opens_paren(.peek(p, .script_width(p)))) {
     .advance(p)
     if (.is(.peek(p), "lbrace")) {
       .advance(p); .advance(p); .advance(p); .advance(p)
     } else {
       .advance(p); .advance(p)
     }
-    if (!.opens_paren(.peek(p))) .parse_error("t_{df}^{-1} must be applied to a parenthesized argument")
     df <- .p_tokens_expr(p, sub$range)
     args <- .p_call_args(p)
     if (length(args) != 1L) .parse_error("t_{df}^{-1}() takes one argument")
@@ -648,10 +705,14 @@ print.latex2grad_parsed <- function(x, ...) {
 
 .p_greek <- function(p, tok) {
   v <- tok$value
-  if (v == "Gamma" && (.opens_paren(.peek(p)) || .is(.peek(p), "lbrace"))) {
+  # \Gamma / \Phi applied to an argument, possibly after a superscript
+  # (\Gamma^2(x), \Phi^{-1}(u)).
+  applied <- .opens_paren(.peek(p, .script_width(p))) ||
+    (v == "Gamma" && .is(.peek(p, .script_width(p)), "lbrace"))
+  if (v == "Gamma" && applied) {
     return(.p_fun_app(p, "gamma", "Gamma"))
   }
-  if (v == "Phi" && .opens_paren(.peek(p)) && !("Phi" %in% names(p$functions))) {
+  if (v == "Phi" && applied && !("Phi" %in% names(p$functions))) {
     .assume(p, "phi_cdf", "`\\Phi(...)` is the standard normal CDF pnorm()")
     return(.p_fun_app(p, "pnorm", "Phi"))
   }

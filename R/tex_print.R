@@ -34,6 +34,7 @@ to_latex <- function(expr) {
   if (is.symbol(e)) return(100)
   if (!is.call(e) || !is.symbol(e[[1L]])) return(100)
   head <- as.character(e[[1L]])
+  if (head == "(") return(.prec(e[[2L]]))
   n <- length(e) - 1L
   if (head %in% c("+", "-") && n == 2L) return(10)
   if (head == "-" && n == 1L) return(15)
@@ -61,6 +62,7 @@ to_latex <- function(expr) {
   }
   if (!is.call(e) || !is.symbol(e[[1L]])) stop("cannot print this expression", call. = FALSE)
   head <- as.character(e[[1L]])
+  if (head == "(") return(.tex(e[[2L]]))
   args <- as.list(e)[-1L]
   n <- length(args)
   if (head %in% c("+", "-") && n == 2L) {
@@ -90,6 +92,8 @@ to_latex <- function(expr) {
         paste0("\\operatorname{qt}", .paren(paste(vapply(args, .tex, ""), collapse = ", ")))
       }
     },
+    qnorm = if (n == 1L) paste0("\\Phi^{-1}", .paren(.tex(args[[1L]]))) else
+      paste0("\\operatorname{qnorm}", .paren(paste(vapply(args, .tex, ""), collapse = ", "))),
     numeric_partial = .tex_numeric_partial(args),
     c = paste0("\\begin{pmatrix} ", paste(vapply(args, .tex, ""), collapse = " \\\\ "),
                " \\end{pmatrix}"),

@@ -62,7 +62,8 @@ normalize_tree <- function(expr) {
   n <- length(e) - 1L
   # ---- syntax / DefDiff artifacts ----
   if (head == "(") return(e[[2L]])
-  if (head %in% c("rep", "as.numeric", "as.vector", "sum", "drop") && n >= 1L) return(e[[2L]])
+  if (head %in% c("as.numeric", "as.vector", "sum", "drop") && n == 1L) return(e[[2L]])
+  if (head == "rep" && n == 2L && .is_call(e[[3L]], "length")) return(e[[2L]])
   if (head == "c" && n == 1L) return(e[[2L]])
   if (head %in% names(.kernel_binary) && n == 2L) {
     return(call(.kernel_binary[[head]], e[[2L]], e[[3L]]))

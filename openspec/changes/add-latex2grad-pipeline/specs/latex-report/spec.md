@@ -20,6 +20,15 @@ Assumptions, Derivative, Verification, Out of scope, and Conclusion, and SHALL w
 - **AND** when the result came from an image, the section SHALL include the image and name
   the OCR model
 
+#### Scenario: non-ASCII text and images do not break compilation
+
+- **WHEN** an assumption, note, or source contains non-ASCII characters (for example an LLM
+  decision mentioning `ν`)
+- **THEN** Greek letters and common math symbols SHALL be written as LaTeX math commands and
+  any other character as `[U+XXXX]`
+- **AND WHEN** the OCR image is not a PNG, JPEG, or PDF file
+- **THEN** the report SHALL name the image instead of embedding it
+
 #### Scenario: empty sections are explicit
 
 - **WHEN** there are no assumptions or no out-of-scope terms

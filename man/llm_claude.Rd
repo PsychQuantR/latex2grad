@@ -27,8 +27,9 @@ response; defaults to httr2. Replace it for testing or proxies.}
 }
 \value{
 A function \verb{(latex, problem)} returning
-\verb{list(latex = <rewritten>, decisions = <character>)}, with attribute
-\code{model}.
+\verb{list(latex = <rewritten>, decisions = <character>, model = <served model>)},
+with attribute \code{model} (the requested model). When the server-side
+fallback answers, \code{model} names the fallback and latex2grad records it.
 }
 \description{
 Returns a function suitable for \code{latex2grad(disambiguate = )}. When the

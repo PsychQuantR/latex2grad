@@ -46,8 +46,12 @@ test_that("reports compile with pdflatex", {
   skip_on_cran()
   dir <- tempfile("l2g-report")
   dir.create(dir)
-  r <- latex2grad("x^2 \\Gamma(x) + \\frac{y}{1 + x^2}", wrt = c("x", "y"), type = "hessian",
-                  domain = list(x = c(1, 2)))
+  hook <- structure(function(latex, problem) {
+    list(latex = "\\sin(x) y", decisions = "read \u03bd as nu \u2264 \u2713")
+  }, model = "m")
+  r <- latex2grad("x^2 \\Gamma(x) + \\frac{y}{1 + x^2} + \\sin x y", wrt = c("x", "y"), type = "hessian",
+                  domain = list(x = c(1, 2)), strict = TRUE, disambiguate = hook)
+  expect_null(r$error)
   l2g_report(r, file = file.path(dir, "r.tex"))
   old <- setwd(dir)
   on.exit(setwd(old), add = TRUE)
@@ -55,4 +59,10 @@ test_that("reports compile with pdflatex", {
                     stdout = FALSE, stderr = FALSE)
   expect_identical(status, 0L)
   expect_true(file.exists("r.pdf"))
+})
+
+test_that("non-ASCII text is converted for LaTeX", {
+  expect_identical(latex2grad:::.tex_text("read \u03bd \u2264 1"), "read $\\nu$ $\\le$ 1")
+  expect_identical(latex2grad:::.tex_text("\u2713"), "[U+2713]")
+  expect_true(any(grepl("[U+03BD]", latex2grad:::.verbatim("x \u03bd"), fixed = TRUE)))
 })

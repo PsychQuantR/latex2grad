@@ -26,8 +26,8 @@ ocr_claude(
 response; defaults to httr2. Replace it for testing or proxies.}
 }
 \value{
-A function \code{(path)} returning \code{list(latex = , notes = )}, with
-attribute \code{model}.
+A function \code{(path)} returning \code{list(latex = , notes = , model = )},
+with attribute \code{model} (the requested model).
 }
 \description{
 Returns a function suitable for \code{latex2grad(image = , ocr = )} that sends

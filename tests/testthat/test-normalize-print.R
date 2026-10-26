@@ -75,3 +75,17 @@ test_that("round-trip holds on a battery of trees", {
   }
   expect_true(rt(quote(numeric_partial(qt(u_1, nu), "nu", "nu"))))
 })
+
+test_that("multi-argument rep/sum calls keep their meaning (review of #2)", {
+  expect_identical(normalize_tree(quote(sum(a, b))), quote(sum(a, b)))
+  expect_identical(normalize_tree(quote(rep(x, 3))), quote(rep(x, 3)))
+  expect_identical(normalize_tree(quote(rep(2, length(x)))), 2)
+})
+
+test_that("to_latex prints parenthesis calls from quote() correctly", {
+  s <- to_latex(quote(-(a + b) * c^(x + 1)))
+  expect_false(grepl("operatorname", s, fixed = TRUE))
+  expect_true(rt(quote(-(a + b) * c^(x + 1))))
+  expect_identical(to_latex(quote(qnorm(u))), "\\Phi^{-1}\\left(u\\right)")
+  expect_true(rt(quote(qnorm(u) * x)))
+})

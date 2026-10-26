@@ -58,9 +58,14 @@ cot <- function(x) cos(x) / sin(x)
 sec <- function(x) 1 / cos(x)
 csc <- function(x) 1 / sin(x)
 
-# Evaluate a tree at named values. Function heads resolve through this
-# package's namespace (numeric_partial, stats, base, then the search path).
+# Evaluate a tree at named values. Every free symbol must be given a value
+# (nothing falls through to globals or to T/F); function heads resolve through
+# this package's namespace (numeric_partial, stats, base, then the search path).
 .eval_tree <- function(expr, values) {
+  missing <- setdiff(.free_symbols(expr), names(values))
+  if (length(missing)) {
+    stop("no value given for: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
   env <- list2env(as.list(values), parent = environment(numeric_partial))
   eval(expr, env)
 }

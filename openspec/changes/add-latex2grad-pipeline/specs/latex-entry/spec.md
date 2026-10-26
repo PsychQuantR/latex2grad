@@ -25,13 +25,25 @@ with the same options MUST always produce the identical tree and assumption list
 - **THEN** the system SHALL signal a condition of class `latex2grad_parse_error` whose
   message names the construct
 
+#### Scenario: Leibniz notation is rejected in every spelling
+
+- **WHEN** the input contains `\frac{\partial}{\partial x}`, `\frac{d}{dx}`, or
+  `\frac{\mathrm{d}}{\mathrm{d}x}`
+- **THEN** the system SHALL signal `latex2grad_parse_error` instead of reading a quotient
+
 ### Requirement: Grammar conventions are recorded as assumptions
 
 Whenever the grammar resolves a notational ambiguity by convention, the system SHALL
 append one human-readable assumption describing the reading it chose. Covered
 conventions: implicit multiplication, unbraced function-argument scope, implicit product
-binding tighter than `/`, `\sin^2 x`, Euler's `e`, `\Phi`, `t_\nu^{-1}`, single-letter
-`f(x)`, finite sum/product expansion, and plain-letter function names.
+binding tighter than `/`, `\sin^2 x`, Euler's `e` (braced or not, including in scripts),
+`\Phi` and `\Phi^{-1}`, `t_\nu^{-1}`, single-letter `f(x)`, finite sum/product expansion,
+and plain-letter function names.
+
+#### Scenario: superscripted function symbols stay functions
+
+- **WHEN** `parse_latex("\\Phi^{-1}(u)")` or `parse_latex("\\Gamma^2(x)")` is called
+- **THEN** the trees SHALL be `qnorm(u)` and `gamma(x)^2`, each with a recorded assumption
 
 #### Scenario: implicit multiplication
 
@@ -55,7 +67,9 @@ binding tighter than `/`, `\sin^2 x`, Euler's `e`, `\Phi`, `t_\nu^{-1}`, single-
 The system SHALL call a user-supplied `disambiguate` hook only when deterministic parsing
 fails or, in strict mode, raises an ambiguity. The hook's rewritten LaTeX SHALL be parsed
 deterministically, and every decision it returns SHALL be recorded as an assumption that
-names the hook's model. No component after parsing MAY call an LLM.
+names the model that served the request (the fallback model when a server-side fallback
+answered). `where` definitions SHALL go through the same entry. No component after
+parsing MAY call an LLM.
 
 #### Scenario: disambiguation hook rewrites failing LaTeX
 
@@ -63,6 +77,13 @@ names the hook's model. No component after parsing MAY call an LLM.
   called and `hook` returns `list(latex = "\\sin(x) y", decisions = "sin applies to x only")`
 - **THEN** the parsed tree SHALL be `sin(x) * y`
 - **AND** the assumptions SHALL contain `sin applies to x only` tagged with the hook's model
+
+#### Scenario: definitions use the same entry
+
+- **WHEN** `latex2grad(..., where = c(x_1 = "t_\\nu^{-1}(u_1)"), strict = TRUE, disambiguate = hook)`
+  is called
+- **THEN** the hook SHALL be consulted for the definition, and its decisions SHALL be
+  recorded as assumptions prefixed with the defined symbol
 
 #### Scenario: OCR entry records the transcription
 

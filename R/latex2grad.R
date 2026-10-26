@@ -49,7 +49,7 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
                        n_points = 25L, tol = 1e-6, seed = 1L, strict = FALSE,
                        disambiguate = NULL, image = NULL, ocr = NULL) {
   type <- match.arg(type)
-  obj <- structure(list(source = list(latex = latex, image = image, ocr_model = NULL,
+  obj <- structure(list(source = list(latex = latex, image = NULL, ocr_model = NULL,
                                       rewritten = NULL),
                         type = type, wrt = wrt, parameters = character(),
                         assumptions = .assumption_df(list()), parsed = NULL,
@@ -57,6 +57,10 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
                         notes = character(), certificate = NULL, error = NULL),
                    class = "latex2grad")
   entry <- list()
+  notes <- character()
+  if (!is.null(latex) && !is.null(image)) {
+    notes <- c(notes, "`image` was ignored because `latex` was given")
+  }
 
   # ---- entry: OCR ----
   if (is.null(latex)) {
@@ -65,8 +69,9 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
     o <- ocr(image)
     latex <- if (is.list(o)) o$latex else o
     if (!is.character(latex) || length(latex) != 1L) stop("the ocr hook must return a LaTeX string", call. = FALSE)
-    model <- .hook_model(ocr)
+    model <- .served_model(o, ocr)
     obj$source$latex <- latex
+    obj$source$image <- image
     obj$source$ocr_model <- model
     entry[[length(entry) + 1L]] <- list(kind = "ocr", text = paste0(
       "The formula was transcribed from the image `", basename(image), "` by ", model,
@@ -94,14 +99,15 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
   if (length(where)) {
     if (is.null(names(where)) || any(!nzchar(names(where)))) stop("`where` must be named", call. = FALSE)
     for (nm in names(where)) {
-      pd <- tryCatch(parse_latex(where[[nm]], vars = vars, functions = functions, strict = strict),
-                     error = function(e) e)
-      if (inherits(pd, "error")) {
-        obj$assumptions <- .assumption_df(items)
-        return(.fail(obj, paste0("the definition of ", nm, " could not be parsed: ", conditionMessage(pd))))
+      de <- .parse_entry(where[[nm]], vars, functions, strict, disambiguate)
+      if (!is.null(de$error)) {
+        obj$assumptions <- .assumption_df(c(items, de$entry))
+        return(.fail(obj, paste0("the definition of ", nm, " could not be parsed: ",
+                                 conditionMessage(de$error))))
       }
+      pd <- de$parsed
       def_trees[[nm]] <- pd$expr
-      a <- .df_items(pd$assumptions)
+      a <- c(de$entry, .df_items(pd$assumptions))
       for (k in seq_along(a)) a[[k]]$text <- paste0("In the definition of `", nm, "`: ", a[[k]]$text)
       items <- c(items, a)
       defs <- rbind(defs, data.frame(symbol = nm, latex = where[[nm]], stringsAsFactors = FALSE))
@@ -116,7 +122,21 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
   syms <- .free_symbols(canonical)
   if (is.null(wrt)) wrt <- syms
   wrt <- as.character(wrt)
+  latex_names <- startsWith(wrt, "\\")
+  if (any(latex_names)) {
+    notes <- c(notes, paste0("`wrt` entry `", wrt[latex_names], "` was read as the symbol `",
+                             sub("^\\\\", "", wrt[latex_names]), "`"))
+    wrt <- sub("^\\\\", "", wrt)
+  }
+  absent <- setdiff(wrt, syms)
+  for (v in absent) {
+    why <- if (v %in% names(where)) " (it was replaced by its `where` definition)" else ""
+    msg <- paste0("`", v, "` does not occur in the formula", why, ", so its derivative is 0")
+    warning(msg, call. = FALSE)
+    notes <- c(notes, msg)
+  }
   obj$wrt <- wrt
+  obj$notes <- notes
   obj$parameters <- setdiff(syms, wrt)
   obj$parsed <- list(tree = parsed$expr, canonical = canonical, latex = .tex(canonical),
                      definitions = defs, definition_trees = lapply(def_trees, normalize_tree),
@@ -128,7 +148,7 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
   if (inherits(d, "error")) return(.fail(obj, paste0("differentiation failed: ", conditionMessage(d))))
   obj$derivative <- d
   obj$out_of_scope <- d$oos
-  obj$notes <- d$notes
+  obj$notes <- c(notes, d$notes)
   obj$derivative$latex <- vapply(d$entries, .tex, "")
 
   # ---- certificate ----
@@ -146,6 +166,15 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
   lapply(seq_len(nrow(df)), function(k) list(kind = df$kind[k], text = df$text[k]))
 }
 
+# The model that actually answered: the hook's result may name a different
+# (fallback) model than the one requested.
+.served_model <- function(out, hook) {
+  requested <- .hook_model(hook)
+  served <- if (is.list(out)) out$model else NULL
+  if (is.null(served) || !nzchar(served) || identical(served, requested)) return(requested)
+  paste0(served, " (fallback for ", requested, ")")
+}
+
 .hook_model <- function(hook) {
   m <- attr(hook, "model")
   if (is.null(m)) "a user-supplied hook" else m
@@ -159,7 +188,6 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
   res <- attempt(latex)
   if (!inherits(res, "condition")) return(list(parsed = res, entry = list()))
   if (is.null(disambiguate)) return(list(error = res, entry = list()))
-  model <- .hook_model(disambiguate)
   entry <- list()
   current <- latex
   for (round in 1:2) {
@@ -168,6 +196,7 @@ latex2grad <- function(latex = NULL, wrt = NULL, type = c("grad", "hessian", "ja
       stop("the disambiguate hook must return list(latex = <string>, decisions = <character>)", call. = FALSE)
     }
     current <- out$latex
+    model <- .served_model(out, disambiguate)
     entry[[length(entry) + 1L]] <- list(kind = "llm", text = paste0(
       "[", model, "] the grammar reported: ", conditionMessage(res), "; the input was rewritten as `", current, "`"))
     for (dec in as.character(out$decisions)) {

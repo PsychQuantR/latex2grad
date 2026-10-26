@@ -53,7 +53,7 @@ l2g_report <- function(x, file = NULL) {
     t <- gsub("<", "$<$", t, fixed = TRUE)
     t <- gsub(">", "$>$", t, fixed = TRUE)
     t <- gsub("\002", "$\\le$", t, fixed = TRUE)
-    gsub("\001", "\\textbackslash{}", t, fixed = TRUE)
+    .unicode_to_tex(gsub("\001", "\\textbackslash{}", t, fixed = TRUE))
   }
   vapply(s, function(one) {
     parts <- strsplit(one, "`", fixed = TRUE)[[1L]]
@@ -66,10 +66,54 @@ l2g_report <- function(x, file = NULL) {
   }, "", USE.NAMES = FALSE)
 }
 
+# Non-ASCII text (LLM decisions, OCR notes) would stop pdflatex: Greek letters
+# and common math symbols become math commands, anything else "[U+XXXX]".
+.greek_lower_cp <- c("alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+                     "iota", "kappa", "lambda", "mu", "nu", "xi", "o", "pi", "rho",
+                     "varsigma", "sigma", "tau", "upsilon", "phi", "chi", "psi", "omega")
+.greek_upper_cp <- c("A", "B", "Gamma", "Delta", "E", "Z", "H", "Theta", "I", "K", "Lambda",
+                     "M", "N", "Xi", "O", "Pi", "P", NA, "Sigma", "T", "Upsilon", "Phi", "X",
+                     "Psi", "Omega")
+.unicode_math <- c("2264" = "\\le", "2265" = "\\ge", "2260" = "\\neq", "2202" = "\\partial",
+                   "2211" = "\\sum", "220F" = "\\prod", "221E" = "\\infty", "00D7" = "\\times",
+                   "00B7" = "\\cdot", "2212" = "-", "2192" = "\\to", "2032" = "'", "221A" = "\\surd",
+                   "00B1" = "\\pm", "2248" = "\\approx", "2208" = "\\in", "00B0" = "^\\circ")
+.unicode_text <- c("2013" = "--", "2014" = "---", "2018" = "`", "2019" = "'", "201C" = "``",
+                   "201D" = "''", "00A0" = "~")
+
+.unicode_char_tex <- function(cp) {
+  hex <- sprintf("%04X", cp)
+  if (cp >= 0x3B1 && cp <= 0x3C9) {
+    g <- .greek_lower_cp[cp - 0x3B0]
+    return(if (nchar(g) == 1L) g else paste0("$\\", g, "$"))
+  }
+  if (cp >= 0x391 && cp <= 0x3A9 && !is.na(.greek_upper_cp[cp - 0x390])) {
+    g <- .greek_upper_cp[cp - 0x390]
+    return(if (nchar(g) == 1L) g else paste0("$\\", g, "$"))
+  }
+  if (hex %in% names(.unicode_math)) return(paste0("$", .unicode_math[[hex]], "$"))
+  if (hex %in% names(.unicode_text)) return(.unicode_text[[hex]])
+  paste0("[U+", hex, "]")
+}
+
+.unicode_to_tex <- function(t, verbatim = FALSE) {
+  # Input from hooks is UTF-8 even when the session locale is not.
+  if (!validUTF8(t)) t <- iconv(t, "latin1", "UTF-8")
+  Encoding(t) <- "UTF-8"
+  cps <- utf8ToInt(t)
+  if (all(cps < 128L)) return(t)
+  out <- vapply(cps, function(cp) {
+    if (cp < 128L) return(intToUtf8(cp))
+    if (verbatim) sprintf("[U+%04X]", cp) else .unicode_char_tex(cp)
+  }, "")
+  paste(out, collapse = "")
+}
+
 # Verbatim block in \small type, hard-wrapped at `width` characters
 # (continuation lines start with "> ").
 .verbatim <- function(s, width = 64L) {
   s <- gsub("\\end{verbatim}", "\\end{verbatim }", s, fixed = TRUE)
+  s <- vapply(s, .unicode_to_tex, "", verbatim = TRUE, USE.NAMES = FALSE)
   lines <- unlist(strsplit(s, "\n", fixed = TRUE))
   wrapped <- unlist(lapply(lines, function(l) {
     if (nchar(l) <= width) return(l)
@@ -97,10 +141,19 @@ l2g_report <- function(x, file = NULL) {
 .rep_source <- function(x) {
   out <- c("\\section*{Source}", "Input LaTeX, verbatim:", .verbatim(x$source$latex))
   if (!is.null(x$source$image)) {
-    out <- c(out, paste0("Transcribed from the image below by ", .tex_text(x$source$ocr_model), "."),
-             "\\begin{center}",
-             paste0("\\includegraphics[width=0.6\\linewidth]{", x$source$image, "}"),
-             "\\end{center}")
+    img <- x$source$image
+    ext <- tolower(tools::file_ext(img))
+    if (ext %in% c("png", "jpg", "jpeg", "pdf") && file.exists(img)) {
+      path <- normalizePath(img, winslash = "/")
+      out <- c(out, paste0("Transcribed from the image below by ", .tex_text(x$source$ocr_model), "."),
+               "\\begin{center}",
+               paste0("\\includegraphics[width=0.6\\linewidth]{\\detokenize{", path, "}}"),
+               "\\end{center}")
+    } else {
+      out <- c(out, paste0("Transcribed from the image ", .tex_text(paste0("`", basename(img), "`")),
+                           " by ", .tex_text(x$source$ocr_model),
+                           " (not embedded: pdflatex includes only PNG, JPEG and PDF images)."))
+    }
   }
   if (!is.null(x$source$rewritten)) {
     out <- c(out, "Rewritten by the disambiguation hook (see Assumptions):", .verbatim(x$source$rewritten))

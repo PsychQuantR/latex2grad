@@ -34,3 +34,13 @@
 - [x] 6.2 `inst/examples/t-copula.R` + `tests/testthat/test-t-copula.R` — worked example ∂/∂ν
 - [x] 6.3 roxygen docs (`man/`), `README.md` usage + status, `NEWS.md`
 - [x] 6.4 `R CMD check` clean; t-copula report compiles with `pdflatex`
+
+## 7. Review of PR #2 (15 findings, all fixed)
+
+- [x] 7.1 `R/tex_parse.R` — `\Phi^{-1}` / `\Gamma^2(x)`, unbraced script `e`, Leibniz `d`, `\left\{` / `\left|` arguments, `t_i^{-1}` as a reciprocal
+- [x] 7.2 `R/certify.R` — circular check generalized to entries whose variable dependence is only numeric; component-wise closure level
+- [x] 7.3 `R/latex2grad.R`, `R/llm.R` — `wrt` validation, `where` through the entry hook, served (fallback) model recorded, image kept only when OCR ran
+- [x] 7.4 `R/numeric.R` — `.eval_tree()` requires a value for every free symbol
+- [x] 7.5 `R/normalize.R`, `R/tex_print.R` — artifact cleanup only for DefDiff's arities; `(` calls and `qnorm` printed correctly
+- [x] 7.6 `R/report.R` — non-ASCII text, image embedding
+- [x] 7.7 regression tests for every finding

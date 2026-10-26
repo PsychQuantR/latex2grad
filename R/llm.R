@@ -113,8 +113,9 @@
 #' @param transport Function `(url, headers, body)` returning the parsed JSON
 #'   response; defaults to httr2. Replace it for testing or proxies.
 #' @return A function `(latex, problem)` returning
-#'   `list(latex = <rewritten>, decisions = <character>)`, with attribute
-#'   `model`.
+#'   `list(latex = <rewritten>, decisions = <character>, model = <served model>)`,
+#'   with attribute `model` (the requested model). When the server-side
+#'   fallback answers, `model` names the fallback and latex2grad records it.
 #' @export
 llm_claude <- function(model = "claude-opus-5-5", api_key = Sys.getenv("ANTHROPIC_API_KEY"),
                        effort = "high", max_tokens = 16000L, transport = .httr2_transport) {
@@ -123,7 +124,8 @@ llm_claude <- function(model = "claude-opus-5-5", api_key = Sys.getenv("ANTHROPI
     content <- paste0("LaTeX formula:\n", latex, "\n\nThe deterministic grammar reported:\n", problem)
     out <- .claude_json(content, .disambiguation_system, .json_schema("latex", "decisions"),
                         model, api_key, effort, max_tokens, transport)
-    list(latex = as.character(out$latex), decisions = as.character(unlist(out$decisions)))
+    list(latex = as.character(out$latex), decisions = as.character(unlist(out$decisions)),
+         model = attr(out, "model"))
   }
   structure(hook, model = model)
 }
@@ -136,8 +138,8 @@ llm_claude <- function(model = "claude-opus-5-5", api_key = Sys.getenv("ANTHROPI
 #' report's assumptions; uncertain symbols the model lists are recorded too.
 #'
 #' @inheritParams llm_claude
-#' @return A function `(path)` returning `list(latex = , notes = )`, with
-#'   attribute `model`.
+#' @return A function `(path)` returning `list(latex = , notes = , model = )`,
+#'   with attribute `model` (the requested model).
 #' @export
 ocr_claude <- function(model = "claude-opus-5-5", api_key = Sys.getenv("ANTHROPIC_API_KEY"),
                        effort = "high", max_tokens = 16000L, transport = .httr2_transport) {
@@ -156,7 +158,8 @@ ocr_claude <- function(model = "claude-opus-5-5", api_key = Sys.getenv("ANTHROPI
     )
     out <- .claude_json(content, "You transcribe images of mathematical formulas into LaTeX.",
                         .json_schema("latex", "notes"), model, api_key, effort, max_tokens, transport)
-    list(latex = as.character(out$latex), notes = as.character(unlist(out$notes)))
+    list(latex = as.character(out$latex), notes = as.character(unlist(out$notes)),
+         model = attr(out, "model"))
   }
   structure(hook, model = model)
 }

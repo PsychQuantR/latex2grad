@@ -13,6 +13,14 @@ cleanup.
 - **THEN** the derivative entries SHALL evaluate to `2xy + cos(x)` and `x^2` at every test point
 - **AND** each entry SHALL be printed as LaTeX
 
+#### Scenario: wrt is checked against the formula
+
+- **WHEN** a `wrt` entry is written as a LaTeX command such as `"\\nu"`
+- **THEN** it SHALL be read as the symbol `nu`, with a note
+- **AND WHEN** a `wrt` variable does not occur in the formula (for example because `where`
+  replaced it)
+- **THEN** the system SHALL warn and record a note, and its derivative SHALL be 0
+
 #### Scenario: free symbols not in wrt are parameters
 
 - **WHEN** `latex2grad("a x^2", wrt = "x")` is called

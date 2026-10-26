@@ -84,3 +84,38 @@ test_that("ocr_claude sends the image and the OCR entry is recorded", {
   expect_match(l2g_report(r), "\\includegraphics", fixed = TRUE)
   expect_true(r$certificate$pass)
 })
+
+test_that("the model that served a fallback is recorded (review of #2)", {
+  skip_if_not_installed("jsonlite")
+  transport <- function(url, headers, body) {
+    list(model = "claude-fallback-x", stop_reason = "end_turn",
+         content = list(list(type = "text", text = jsonlite::toJSON(
+           list(latex = "\\sin(x) y", decisions = "sin applies to x"), auto_unbox = TRUE))))
+  }
+  r <- latex2grad("\\sin x y", wrt = "x", strict = TRUE,
+                  disambiguate = llm_claude(api_key = "k", transport = transport))
+  expect_true(any(grepl("[claude-fallback-x (fallback for claude-opus-5-5)]", r$assumptions$text, fixed = TRUE)))
+})
+
+test_that("where-definitions go through the disambiguation hook in strict mode", {
+  seen <- character()
+  hook <- structure(function(latex, problem) {
+    seen <<- c(seen, latex)
+    list(latex = "\\operatorname{qt}(u_1, \\nu)", decisions = "t quantile")
+  }, model = "test-model")
+  r <- latex2grad("x_1 + \\nu", wrt = "nu", where = c(x_1 = "t_\\nu^{-1}(u_1)"), strict = TRUE,
+                  disambiguate = hook, domain = list(nu = c(3, 9), u_1 = c(0.2, 0.8)))
+  expect_null(r$error)
+  expect_identical(seen, "t_\\nu^{-1}(u_1)")
+  expect_true(any(grepl("In the definition of `x_1`: [test-model] t quantile", r$assumptions$text, fixed = TRUE)))
+})
+
+test_that("images are recorded only when OCR ran, and non-embeddable ones are named", {
+  expect_null(latex2grad("x^2", wrt = "x", image = "unused.png")$source$image)
+  gif <- tempfile(fileext = ".gif")
+  writeBin(as.raw(1:8), gif)
+  ocr <- structure(function(path) list(latex = "x^2", notes = character()), model = "m")
+  rep <- l2g_report(latex2grad(image = gif, ocr = ocr, wrt = "x"))
+  expect_false(grepl("includegraphics", rep, fixed = TRUE))
+  expect_match(rep, "not embedded", fixed = TRUE)
+})

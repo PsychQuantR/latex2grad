@@ -55,7 +55,10 @@
                           message = vapply(rts, `[[`, "", "message"), stringsAsFactors = FALSE)
 
   # ---- closure levels ----
-  lev_src <- DefDiff::level(x$parsed$lowered)
+  lowered <- x$parsed$lowered
+  src_parts <- if (.is_call(lowered, "c")) as.list(lowered)[-1L] else list(lowered)
+  ranks <- .level_ranks[vapply(src_parts, function(e) DefDiff::level(e), "")]
+  lev_src <- names(.level_ranks)[match(max(ranks), .level_ranks)]
   lev_ent <- vapply(entries, function(e) DefDiff::level(e), "")
   has_np <- vapply(entries, .has_numeric_partial, TRUE)
   closure <- if (lev_src == "unknown") NA else
@@ -123,11 +126,13 @@
                   enough_points = enough, first_problem = first_problem)
 
   failures <- character()
-  fully <- x$derivative$fully_numeric
+  fully <- x$derivative$fully_numeric |
+    vapply(entries, .only_numeric, TRUE, vars = x$wrt)
   if (any(fully)) {
     failures <- c(failures, paste0(
-      "DefDiff refused the formula for ", paste(labels[fully], collapse = "; "),
-      ", so those entries are entirely numeric and their numeric comparison is circular"))
+      "the dependence on the variables of ", paste(labels[fully], collapse = "; "),
+      " lies entirely inside numeric-partial nodes (out-of-scope terms or a formula DefDiff refused), ",
+      "so comparing it with central differences is circular"))
   }
   if (!all(roundtrip$ok)) {
     failures <- c(failures, paste0("round-trip failed for: ", paste(roundtrip$item[!roundtrip$ok], collapse = "; ")))
@@ -143,6 +148,21 @@
   }
   list(roundtrip = roundtrip, levels = levels, numeric = numeric,
        pass = length(failures) == 0L, failures = failures)
+}
+
+# TRUE when an entry's dependence on `vars` lies entirely inside
+# numeric_partial() nodes: there is no symbolic content left to check.
+.only_numeric <- function(e, vars) {
+  if (!.has_numeric_partial(e)) return(FALSE)
+  !any(vars %in% all.vars(.drop_numeric_partials(e)))
+}
+
+.drop_numeric_partials <- function(e) {
+  if (.is_call(e, "numeric_partial")) return(1)
+  if (is.call(e) && length(e) > 1L) {
+    for (j in seq_along(e)[-1L]) e[[j]] <- .drop_numeric_partials(e[[j]])
+  }
+  e
 }
 
 .finite_all <- function(v) is.numeric(v) && length(v) >= 1L && all(is.finite(v))

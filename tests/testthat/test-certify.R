@@ -63,3 +63,19 @@ test_that("parse failures still produce an object with a failed certificate", {
   expect_match(r$error, "could not be parsed")
   expect_output(print(r), "NOT CERTIFIED")
 })
+
+test_that("an entry whose variable dependence is only numeric is not certified (review of #2)", {
+  for (tex in c("\\Gamma(x)", "c \\Gamma(x)", "\\Phi(x y)")) {
+    r <- latex2grad(tex, wrt = "x", domain = list(x = c(1, 2)))
+    expect_false(r$certificate$pass, info = tex)
+    expect_match(paste(r$certificate$failures, collapse = " "), "circular", info = tex)
+  }
+  # symbolic content outside the numeric node is still checked and certified
+  expect_true(latex2grad("x^2 \\Gamma(x)", wrt = "x", domain = list(x = c(1, 2)))$certificate$pass)
+})
+
+test_that("closure level of a vector formula uses its components", {
+  r <- latex2grad("\\begin{pmatrix} x y \\\\ \\sin x \\end{pmatrix}", wrt = c("x", "y"), type = "jacobian")
+  expect_identical(r$certificate$levels$source, "L_3")
+  expect_true(r$certificate$levels$closure)
+})
