@@ -1,7 +1,6 @@
 # add-latex2grad-pipeline
 
-**GitHub-side tracker**: pending — issue draft prepared in-session (could not be filed: no
-GitHub write access); design source PsychQuant/definable_algebra#22 (private)
+**GitHub-side tracker**: #1 (design source: PsychQuant/definable_algebra#22, private)
 
 ## Why
 
